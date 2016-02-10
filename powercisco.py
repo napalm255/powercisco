@@ -23,12 +23,13 @@ class app ( object ) :
         if not os.path.exists(self.devicepath):
             os.makedirs(self.devicepath)
 
+        print('=> ' + self.name + ' v' + self.version)
+
         return
 
 class debug ( object ) :
-    def __init__ ( self, app = app() ) :
+    def __init__ ( self ) :
         self.enabled = 0
-        print('=> ' + app.name + ' v' + app.version)
 
         return
 
@@ -250,6 +251,7 @@ def handler_devices ( ) :
 
 # handler
 #   what to run and in what order
+# TODO: create handler class and merge auth and devices
 def handler ( ) :
     output = {}
 
@@ -273,29 +275,32 @@ def handler ( ) :
         return
 
     # loop through devices
+    # TODO: need better way of handling order and requirements for actions
+    #       a function with a list of args and their required args
+    # TODO: remove repeated code
     devices = handler_devices()
     for device in devices:
         print('>> device: ' + device['host'])
         output[device['host']] = {}
 
+        # no auth required
         if 'error' in device:
-            print(':: error: ' + device['error'])
-            print(':: skipping')
+            print(':: error: ' + device['error'] + '. skipping.')
             continue
-
-        if args.r:
-            creds = handler_auth(device)
-            device.update(creds)
-            output[device['host']]['run'] = run_commands(device, args.r)
-
-        if args.d:
-            creds = handler_auth(device)
-            device.update(creds)
-            output[device['host']]['download'] = config_download(device, args.d)
-
-        if args.s:
+        elif args.s:
             output[device['host']]['show'] = config_show(device, args.s)
             print(output[device['host']]['show'])
+
+        # auth required
+        creds = handler_auth(device)
+        device.update(creds)
+        if 'error' in device:
+            print(':: error: ' + device['error'] + '. skipping.')
+            continue
+        elif args.r:
+            output[device['host']]['run'] = run_commands(device, args.r)
+        elif args.d:
+            output[device['host']]['download'] = config_download(device, args.d)
 
     return output
 
@@ -412,6 +417,11 @@ parser.add_argument('--out', nargs='?',
 parser.add_argument('--log', nargs='?',
                    default='-',
                    help='log to file')
+
+if len(sys.argv) == 1:
+    parser.print_help()
+    sys.exit(1)
+
 args = parser.parse_args()
 
 # handle it
